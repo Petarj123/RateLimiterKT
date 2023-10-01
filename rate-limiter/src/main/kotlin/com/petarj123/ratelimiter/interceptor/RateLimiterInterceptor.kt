@@ -37,16 +37,19 @@ class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService,
             if (clientIP in setOf(*rateLimit.whitelist)) {
                 return true
             } else if (clientIP in setOf(*rateLimit.blacklist)) {
+                response.status = HttpStatus.FORBIDDEN.value()
                 return false
             }
         }
-
         // If Redis is down
         val health: Health? = redisHealthIndicator.getHealth(false)
-        println(health?.status)
         if (health != null) {
             if (health.status.equals(Status.DOWN)) {
-                val fallback: FallbackStrategy = rateLimit?.fallback ?: rateLimiterProperties.fallback
+                val fallback: FallbackStrategy = if (rateLimiterProperties.fallback != null) {
+                    rateLimiterProperties.fallback!!
+                } else {
+                    rateLimit!!.fallback
+                }
                 return if (fallback != FallbackStrategy.BLOCK) {
                     response.status = HttpStatus.OK.value()
                     true
@@ -69,14 +72,13 @@ class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService,
             maxRequests = rateLimiterProperties.defaultMaxRequests
             timeWindowSeconds = rateLimiterProperties.defaultTimeWindowSeconds
         }
-
+        println(maxRequests)
         // If Adaptive Rate Limiting is enabled
         if (rateLimiterProperties.adaptiveRateLimit) {
             adaptiveRateLimiter.adjustRateLimitBasedOnSystemLoad(endpoint)
             maxRequests = adaptiveRateLimiter.getCurrentRateLimit(endpoint)
         }
-        println(maxRequests)
-        println(clientIP)
+
         val suspensionDuration: Long = rateLimiterProperties.suspensionDuration
         val suspensionThreshold: Long = rateLimiterProperties.suspensionThreshold.toLong()
 
@@ -91,8 +93,8 @@ class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService,
     private fun extractClientIP(request: HttpServletRequest?): String {
         var remoteAddr = ""
         if (request != null) {
-            remoteAddr = request.getHeader("X-FORWARDED-FOR")
-            if (remoteAddr.isNullOrEmpty()) {
+            remoteAddr = request.getHeader("X-FORWARDED-FOR") ?: ""
+            if (remoteAddr.isBlank()) {
                 remoteAddr = request.remoteAddr
             }
         }

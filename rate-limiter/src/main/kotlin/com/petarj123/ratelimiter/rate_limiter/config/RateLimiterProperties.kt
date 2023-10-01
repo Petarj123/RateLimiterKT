@@ -10,14 +10,14 @@ class RateLimiterProperties {
     var defaultTimeWindowSeconds: Long = 60
     var whitelistedIps: Set<String> = HashSet()
     var blacklistedIps: Set<String> = HashSet()
-    var fallback: FallbackStrategy = FallbackStrategy.ALLOW
+    var fallback: FallbackStrategy? = null
     var adaptiveRateLimit: Boolean = false
     var highLoadThreshold: Double = 0.8
     var lowLoadThreshold: Double = 0.5
     var highLoadMultiplier: Double = 0.8
     var lowLoadMultiplier: Double = 1.1
-    var decreaseOnHighLoad: Boolean = true
-    var increaseOnLowLoad: Boolean = true
+    var decreaseOnHighLoad: Boolean = false
+    var increaseOnLowLoad: Boolean = false
     var suspensionDuration: Long = 600
     var suspensionThreshold: Int = 1000
 }

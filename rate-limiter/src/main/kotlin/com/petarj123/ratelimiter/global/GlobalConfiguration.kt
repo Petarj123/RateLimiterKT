@@ -1,4 +1,4 @@
-package com.petarj123.ratelimiter
+package com.petarj123.ratelimiter.global
 
 import com.petarj123.ratelimiter.interceptor.RateLimiterInterceptor
 import com.petarj123.ratelimiter.rate_limiter.config.RateLimiterProperties
