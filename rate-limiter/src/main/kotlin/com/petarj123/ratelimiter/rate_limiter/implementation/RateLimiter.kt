@@ -1,5 +1,8 @@
 package com.petarj123.ratelimiter.rate_limiter.implementation
 
+import com.petarj123.ratelimiter.rate_limiter.data.RateLimitParamsDTO
+
 interface RateLimiter {
-    fun isAllowed(identifier: String, maxRequests: Int, timeWindowSeconds: Long, suspensionDuration: Long, suspensionThreshold: Long): Boolean
+    fun isAllowed(params: RateLimitParamsDTO): Boolean
+
 }
