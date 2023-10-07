@@ -1,6 +1,6 @@
 package com.petarj123.ratelimiter.rate_limiter.annotation
 
-import com.petarj123.ratelimiter.rate_limiter.model.FallbackStrategy
+import com.petarj123.ratelimiter.rate_limiter.data.FallbackStrategy
 
 
 @Retention(AnnotationRetention.RUNTIME)
