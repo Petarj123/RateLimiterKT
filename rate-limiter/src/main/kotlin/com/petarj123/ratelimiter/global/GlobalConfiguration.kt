@@ -3,7 +3,9 @@ package com.petarj123.ratelimiter.global
 import com.petarj123.ratelimiter.interceptor.RateLimiterInterceptor
 import com.petarj123.ratelimiter.rate_limiter.config.RateLimiterProperties
 import com.petarj123.ratelimiter.rate_limiter.service.AdaptiveRateLimiter
-import com.petarj123.ratelimiter.rate_limiter.service.RateLimiterService
+import com.petarj123.ratelimiter.rate_limiter.service.LeakyTokenBucketLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.SlidingWindowLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.TokenBucketLimiter
 import com.petarj123.ratelimiter.redis.config.RedisProperties
 import com.petarj123.ratelimiter.redis.health.RedisHealthIndicator
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -19,8 +21,8 @@ class GlobalConfiguration {
         return RedisProperties()
     }
     @Bean
-    fun rateLimiterInterceptor(rateLimiterService: RateLimiterService, rateLimiterProperties: RateLimiterProperties, redisHealthIndicator: RedisHealthIndicator, adaptiveRateLimiter: AdaptiveRateLimiter): RateLimiterInterceptor {
-        return RateLimiterInterceptor(rateLimiterService, rateLimiterProperties, redisHealthIndicator, adaptiveRateLimiter)
+    fun rateLimiterInterceptor(slidingWindowLimiter: SlidingWindowLimiter, tokenBucketLimiter: TokenBucketLimiter, leakyTokenBucketLimiter: LeakyTokenBucketLimiter, rateLimiterProperties: RateLimiterProperties, redisHealthIndicator: RedisHealthIndicator, adaptiveRateLimiter: AdaptiveRateLimiter): RateLimiterInterceptor {
+        return RateLimiterInterceptor(slidingWindowLimiter, tokenBucketLimiter, leakyTokenBucketLimiter, rateLimiterProperties, redisHealthIndicator, adaptiveRateLimiter)
     }
     @Bean
     fun redisHealthIndicator(stringRedisTemplate: StringRedisTemplate): RedisHealthIndicator {
