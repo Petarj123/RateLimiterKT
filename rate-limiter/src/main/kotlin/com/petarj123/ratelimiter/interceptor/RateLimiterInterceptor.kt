@@ -2,9 +2,14 @@ package com.petarj123.ratelimiter.interceptor
 
 import com.petarj123.ratelimiter.rate_limiter.annotation.RateLimit
 import com.petarj123.ratelimiter.rate_limiter.config.RateLimiterProperties
-import com.petarj123.ratelimiter.rate_limiter.model.FallbackStrategy
+import com.petarj123.ratelimiter.rate_limiter.implementation.RateLimiter
+import com.petarj123.ratelimiter.rate_limiter.data.Algorithm
+import com.petarj123.ratelimiter.rate_limiter.data.FallbackStrategy
+import com.petarj123.ratelimiter.rate_limiter.data.RateLimitParamsDTO
 import com.petarj123.ratelimiter.rate_limiter.service.AdaptiveRateLimiter
-import com.petarj123.ratelimiter.rate_limiter.service.RateLimiterService
+import com.petarj123.ratelimiter.rate_limiter.service.LeakyTokenBucketLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.SlidingWindowLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.TokenBucketLimiter
 import com.petarj123.ratelimiter.redis.health.RedisHealthIndicator
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -14,8 +19,19 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
 
-class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService, private val rateLimiterProperties: RateLimiterProperties, private val redisHealthIndicator: RedisHealthIndicator, private val adaptiveRateLimiter: AdaptiveRateLimiter) : HandlerInterceptor {
-
+class RateLimiterInterceptor(
+    private val slidingWindowLimiter: SlidingWindowLimiter,
+    private val tokenBucketLimiter: TokenBucketLimiter,
+    private val leakyTokenBucketLimiter: LeakyTokenBucketLimiter,
+    private val rateLimiterProperties: RateLimiterProperties,
+    private val redisHealthIndicator: RedisHealthIndicator,
+    private val adaptiveRateLimiter: AdaptiveRateLimiter
+) : HandlerInterceptor {
+    private val rateLimiterAlgorithm: RateLimiter = when(rateLimiterProperties.algorithm) {
+        Algorithm.SLIDING_WINDOW -> slidingWindowLimiter
+        Algorithm.TOKEN_BUCKET -> tokenBucketLimiter
+        Algorithm.LEAKY_BUCKET -> leakyTokenBucketLimiter
+    }
     @Throws(Exception::class)
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         if (handler !is HandlerMethod) {
@@ -60,10 +76,22 @@ class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService,
             }
         }
 
-        // Determine maxRequests and timeWindowSeconds
+        val rateLimitParams = buildRateLimitParamsDTO(
+            identifier = clientIP,
+            rateLimit = rateLimit,
+            endpoint = request.requestURI
+        )
+
+        if (!rateLimiterAlgorithm.isAllowed(rateLimitParams)) {
+            response.status = HttpStatus.TOO_MANY_REQUESTS.value()
+            return false
+        }
+        return true
+
+    }
+    private fun buildRateLimitParamsDTO(identifier: String, rateLimit: RateLimit?,  endpoint: String): RateLimitParamsDTO {
         var maxRequests: Int
         val timeWindowSeconds: Long
-        val endpoint = request.requestURI
 
         if (rateLimit != null) {
             maxRequests = rateLimit.maxRequests
@@ -72,22 +100,22 @@ class RateLimiterInterceptor(private val rateLimiterService: RateLimiterService,
             maxRequests = rateLimiterProperties.defaultMaxRequests
             timeWindowSeconds = rateLimiterProperties.defaultTimeWindowSeconds
         }
-        println(maxRequests)
+
         // If Adaptive Rate Limiting is enabled
         if (rateLimiterProperties.adaptiveRateLimit) {
             adaptiveRateLimiter.adjustRateLimitBasedOnSystemLoad(endpoint)
             maxRequests = adaptiveRateLimiter.getCurrentRateLimit(endpoint)
         }
 
-        val suspensionDuration: Long = rateLimiterProperties.suspensionDuration
-        val suspensionThreshold: Long = rateLimiterProperties.suspensionThreshold.toLong()
-
-        if (!rateLimiterService.isAllowed(clientIP, maxRequests, timeWindowSeconds, suspensionDuration, suspensionThreshold)) {
-            response.status = HttpStatus.TOO_MANY_REQUESTS.value()
-            return false
-        }
-        return true
-
+        return RateLimitParamsDTO(identifier = identifier,
+            maxRequests = maxRequests,
+            timeWindowSeconds = timeWindowSeconds,
+            suspensionDuration = rateLimiterProperties.suspensionDuration,
+            suspensionThreshold = rateLimiterProperties.suspensionThreshold,
+            bucketCapacity = rateLimiterProperties.defaultBucketCapacity,
+            bucketRefillRate = rateLimiterProperties.defaultRefillRate,
+            bucketRefillTime = rateLimiterProperties.defaultBucketRefillTime
+        )
     }
 
     private fun extractClientIP(request: HttpServletRequest?): String {
