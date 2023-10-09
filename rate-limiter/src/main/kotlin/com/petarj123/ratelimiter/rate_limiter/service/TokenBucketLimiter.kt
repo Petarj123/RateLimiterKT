@@ -6,12 +6,12 @@ import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
 @Service
 class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, private val clientSuspensionService: ClientSuspensionService) : RateLimiter{
     private val logger = LoggerFactory.getLogger(TokenBucketLimiter::class.java)
-    // TODO: TTL
     override fun isAllowed(params: RateLimitParamsDTO): Boolean {
         val limiterKey = "bucket:${params.identifier}"
         val bucket = stringRedisTemplate.opsForHash<String, String>().entries(limiterKey)
@@ -36,6 +36,7 @@ class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, p
                     "LastRefillTime" to Instant.now().epochSecond.toString()
                 )
             )
+            stringRedisTemplate.expire(limiterKey, params.bucketTTL, TimeUnit.SECONDS)
             return true
         } else {
             val tokensRemaining = bucket["TokensRemaining"]?.toInt() ?: 0

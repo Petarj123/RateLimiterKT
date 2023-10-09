@@ -61,8 +61,11 @@ class RateLimiterProperties {
     var defaultBucketRefillTime: Long = 60
 
     @Description("Time-to-live for a user's token bucket in Redis. Adjust based on expected user activity patterns.")
-    var userBucketTTL: Long = 120  // default 2 minutes in seconds
+    var userBucketTTL: Long = 3 * defaultBucketRefillTime
+
+    @Description("Rate at which tokens are added for Leaky Bucket (tokens per second)")
+    var defaultDripRate: Int = 60;
 
     @Description("Algorithm chosen for rate limiting.")
-    var algorithm:Algorithm = Algorithm.TOKEN_BUCKET
+    var algorithm:Algorithm = Algorithm.LEAKY_BUCKET
 }

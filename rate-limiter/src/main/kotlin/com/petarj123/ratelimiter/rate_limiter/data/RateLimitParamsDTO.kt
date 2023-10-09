@@ -7,4 +7,6 @@ data class RateLimitParamsDTO(val identifier: String,
                               val bucketRefillRate: Int,
                               val bucketRefillTime: Long,
                               val suspensionDuration: Long,
-                              val suspensionThreshold: Int)
+                              val suspensionThreshold: Int,
+                              val bucketTTL: Long,
+                              val dripRate: Int)
