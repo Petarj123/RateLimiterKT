@@ -2,7 +2,7 @@ package com.petarj123.ratelimiter.rate_limiter.config
 
 import com.petarj123.ratelimiter.rate_limiter.service.AdaptiveRateLimiter
 import com.petarj123.ratelimiter.rate_limiter.service.ClientSuspensionService
-import com.petarj123.ratelimiter.rate_limiter.service.SlidingWindowLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.FixedWindowLimiter
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.context.annotation.Bean
@@ -18,8 +18,8 @@ class RateLimiterConfig {
         return RateLimiterProperties()
     }
     @Bean
-    fun rateLimiter(stringRedisTemplate: StringRedisTemplate, clientSuspensionService: ClientSuspensionService): SlidingWindowLimiter {
-        return SlidingWindowLimiter(stringRedisTemplate, clientSuspensionService)
+    fun rateLimiter(stringRedisTemplate: StringRedisTemplate, clientSuspensionService: ClientSuspensionService): FixedWindowLimiter {
+        return FixedWindowLimiter(stringRedisTemplate, clientSuspensionService)
     }
     @Bean
     fun clientSuspensionService(stringRedisTemplate: StringRedisTemplate): ClientSuspensionService {

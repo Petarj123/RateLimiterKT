@@ -8,7 +8,7 @@ import com.petarj123.ratelimiter.rate_limiter.data.FallbackStrategy
 import com.petarj123.ratelimiter.rate_limiter.data.RateLimitParamsDTO
 import com.petarj123.ratelimiter.rate_limiter.service.AdaptiveRateLimiter
 import com.petarj123.ratelimiter.rate_limiter.service.LeakyTokenBucketLimiter
-import com.petarj123.ratelimiter.rate_limiter.service.SlidingWindowLimiter
+import com.petarj123.ratelimiter.rate_limiter.service.FixedWindowLimiter
 import com.petarj123.ratelimiter.rate_limiter.service.TokenBucketLimiter
 import com.petarj123.ratelimiter.redis.health.RedisHealthIndicator
 import jakarta.servlet.http.HttpServletRequest
@@ -20,7 +20,7 @@ import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
 
 class RateLimiterInterceptor(
-    private val slidingWindowLimiter: SlidingWindowLimiter,
+    private val fixedWindowLimiter: FixedWindowLimiter,
     private val tokenBucketLimiter: TokenBucketLimiter,
     private val leakyTokenBucketLimiter: LeakyTokenBucketLimiter,
     private val rateLimiterProperties: RateLimiterProperties,
@@ -28,7 +28,7 @@ class RateLimiterInterceptor(
     private val adaptiveRateLimiter: AdaptiveRateLimiter
 ) : HandlerInterceptor {
     private val rateLimiterAlgorithm: RateLimiter = when(rateLimiterProperties.algorithm) {
-        Algorithm.SLIDING_WINDOW -> slidingWindowLimiter
+        Algorithm.FIXED_WINDOW -> fixedWindowLimiter
         Algorithm.TOKEN_BUCKET -> tokenBucketLimiter
         Algorithm.LEAKY_BUCKET -> leakyTokenBucketLimiter
     }
@@ -114,7 +114,9 @@ class RateLimiterInterceptor(
             suspensionThreshold = rateLimiterProperties.suspensionThreshold,
             bucketCapacity = rateLimiterProperties.defaultBucketCapacity,
             bucketRefillRate = rateLimiterProperties.defaultRefillRate,
-            bucketRefillTime = rateLimiterProperties.defaultBucketRefillTime
+            bucketRefillTime = rateLimiterProperties.defaultBucketRefillTime,
+            bucketTTL = rateLimiterProperties.userBucketTTL,
+            dripRate = rateLimiterProperties.defaultDripRate
         )
     }
 

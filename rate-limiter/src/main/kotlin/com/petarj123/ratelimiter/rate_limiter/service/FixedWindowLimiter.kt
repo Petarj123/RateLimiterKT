@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service
 import java.util.concurrent.TimeUnit
 
 @Service
-class SlidingWindowLimiter(val stringRedisTemplate: StringRedisTemplate, val clientSuspensionService: ClientSuspensionService) : RateLimiter, RateLimiterManagement {
-    private val logger = LoggerFactory.getLogger(SlidingWindowLimiter::class.java)
+class FixedWindowLimiter(val stringRedisTemplate: StringRedisTemplate, val clientSuspensionService: ClientSuspensionService) : RateLimiter, RateLimiterManagement {
+    private val logger = LoggerFactory.getLogger(FixedWindowLimiter::class.java)
     override fun isAllowed(params: RateLimitParamsDTO): Boolean {
         val rateLimitKey = "rate_limit:${params.identifier}"
         val currentCount: Long? = increment(rateLimitKey)
