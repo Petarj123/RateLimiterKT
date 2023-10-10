@@ -32,7 +32,7 @@ class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, p
             stringRedisTemplate.opsForHash<String, String>().putAll(
                 limiterKey,
                 mapOf(
-                    "TokensRemaining" to capacity.toString(),
+                    "TokensRemaining" to (capacity - 1).toString(),
                     "LastRefillTime" to Instant.now().epochSecond.toString()
                 )
             )
