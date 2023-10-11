@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["rate-limiter.algorithm=FIXED_WINDOW", "rate-limiter.default-max-requests=10"])
+@TestPropertySource(properties = ["rate-limiter.algorithm=FIXED_WINDOW", "rate-limiter.default-max-requests=10", "rate-limiter.suspension-threshold=10", "rate-limiter.suspension-duration=60"])
 class FixedWindowTest {
 
     @Autowired
@@ -118,7 +118,13 @@ class FixedWindowTest {
         rateLimiterProperties.defaultTimeWindowSeconds = 60
         resetTTL()
     }
-
+    @Test
+    fun `exceeds suspension threshold, should return status 429`() {
+        repeat(20) {
+            mockMvc.perform(get("/test/hi"))
+        }
+        mockMvc.perform(get("/test/hi")).andExpect(status().isTooManyRequests)
+    }
     private fun resetTTL() {
         stringRedisTemplate.expire("rate_limit:127.0.0.1", 0, TimeUnit.SECONDS)
     }
