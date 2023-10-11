@@ -67,5 +67,5 @@ class RateLimiterProperties {
     var defaultDripRate: Int = 60;
 
     @Description("Algorithm chosen for rate limiting.")
-    var algorithm:Algorithm = Algorithm.LEAKY_BUCKET
+    var algorithm:Algorithm = Algorithm.FIXED_WINDOW
 }
