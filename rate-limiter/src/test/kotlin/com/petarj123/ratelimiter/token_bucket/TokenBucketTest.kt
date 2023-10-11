@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["rate-limiter.algorithm=TOKEN_BUCKET", "rate-limiter.default-bucket-capacity=10"])
+@TestPropertySource(properties = ["rate-limiter.algorithm=TOKEN_BUCKET", "rate-limiter.default-bucket-capacity=1", "rate-limiter.suspension-threshold=10"])
 class TokenBucketTest() {
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -77,7 +77,6 @@ class TokenBucketTest() {
         mockMvc.perform(get("/test/hi")).andExpect(status().isOk)
     }
 
-
     @Test
     fun `bucket refills partially and only allows equivalent number of requests`() {
         // Make initial requests to use half the tokens
@@ -93,4 +92,11 @@ class TokenBucketTest() {
         mockMvc.perform(get("/test/hi")).andExpect(status().isTooManyRequests)
     }
 
+    @Test
+    fun `exceeds suspension threshold, should return status 429`() {
+        repeat(30) {
+            mockMvc.perform(get("/test/hi"))
+        }
+        mockMvc.perform(get("/test/hi")).andExpect(status().isTooManyRequests)
+    }
 }

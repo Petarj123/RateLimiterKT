@@ -33,6 +33,18 @@ class LeakyTokenBucketLimiter(private val stringRedisTemplate: StringRedisTempla
         var tokens = bucket["Tokens"]?.toInt() ?: params.bucketCapacity // Default to full bucket if not present
         tokens = (tokens + tokensToAdd).coerceAtMost(params.bucketCapacity) // Ensuring we don't exceed bucket capacity
 
+        // Check aggressive behavior and potentially suspend
+        if (tokens == 0) {
+            val noTokenCounter = stringRedisTemplate.opsForValue().increment("leaky:noTokens:${params.identifier}") ?: 1
+            if (noTokenCounter > params.suspensionThreshold) {
+                clientSuspensionService.suspend(params.identifier, params.suspensionDuration)
+                logger.error("Client ${params.identifier} has been suspended due to aggressive behavior.")
+                return RateLimiterResponse(false, getRemainingRequests(limiterKey))
+            }
+        } else {
+            stringRedisTemplate.delete("leaky:noTokens:${params.identifier}")
+        }
+
         // Request logic
         return if (tokens > 0) {
             stringRedisTemplate.opsForHash<String, String>().putAll(

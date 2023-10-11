@@ -28,45 +28,40 @@ class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, p
             return RateLimiterResponse(false, getRemainingRequests(limiterKey))
         }
 
-        if (bucket.isEmpty()) {
-            // User's first request. Initialize bucket.
+        val tokensRemaining = bucket["TokensRemaining"]?.toInt() ?: capacity
+        val lastRefillTime = bucket["LastRefillTime"]?.toLong() ?: Instant.now().epochSecond
+
+        val now = Instant.now().epochSecond
+        val elapsed = now - lastRefillTime
+        val tokensToAdd = if (elapsed >= params.bucketRefillTime) {
+            params.bucketRefillRate
+        } else {
+            0
+        }
+
+        val newTokens = min(tokensRemaining + tokensToAdd, capacity)
+
+        if (newTokens == 0) {
+            val noTokenCounter = stringRedisTemplate.opsForValue().increment("bucket:noTokens:${params.identifier}") ?: 1
+            if (noTokenCounter > params.suspensionThreshold) {
+                clientSuspensionService.suspend(params.identifier, params.suspensionDuration)
+                logger.error("Client ${params.identifier} has been suspended due to aggressive behavior.")
+                return RateLimiterResponse(false, 0)
+            }
+        } else {
+            // If there are tokens available, reset the aggressive behavior counter for the client
+            stringRedisTemplate.delete("bucket:noTokens:${params.identifier}")
             stringRedisTemplate.opsForHash<String, String>().putAll(
                 limiterKey,
                 mapOf(
-                    "TokensRemaining" to (capacity - 1).toString(),
-                    "LastRefillTime" to Instant.now().epochSecond.toString()
+                    "TokensRemaining" to (newTokens - 1).toString(),
+                    "LastRefillTime" to (if(tokensToAdd > 0) now else lastRefillTime).toString() // Update only if refill happened
                 )
             )
-            stringRedisTemplate.expire(limiterKey, params.bucketTTL, TimeUnit.SECONDS)
-            return RateLimiterResponse(true, getRemainingRequests(limiterKey))
-        } else {
-            val tokensRemaining = bucket["TokensRemaining"]?.toInt() ?: 0
-            val lastRefillTime = bucket["LastRefillTime"]?.toLong() ?: 0L
-
-            // Calculate refill
-            val now = Instant.now().epochSecond
-            val elapsed = now - lastRefillTime
-            val tokensToAdd = if (elapsed >= params.bucketRefillTime) {
-                params.bucketRefillRate
-            } else {
-                0
-            }
-            val newTokens = min(tokensRemaining + tokensToAdd, capacity)
-
-            // Deduct a token for the request
-            return if (newTokens > 0) {
-                stringRedisTemplate.opsForHash<String, String>().putAll(
-                    limiterKey,
-                    mapOf(
-                        "TokensRemaining" to (newTokens - 1).toString(),
-                        "LastRefillTime" to (if(tokensToAdd > 0) now else lastRefillTime).toString() // Update only if refill happened
-                    )
-                )
-                RateLimiterResponse(true, getRemainingRequests(limiterKey))
-            } else {
-                RateLimiterResponse(false, getRemainingRequests(limiterKey))
-            }
+            return RateLimiterResponse(true, (newTokens - 1).toLong())
         }
+
+        return RateLimiterResponse(false, getRemainingRequests(limiterKey))
     }
     private fun getRemainingRequests(identifier: String): Long {
         return stringRedisTemplate.opsForHash<String, String>().get(identifier, "TokensRemaining")?.toLong() ?: 0

@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["rate-limiter.algorithm=LEAKY_BUCKET", "rate-limiter.default-bucket-capacity=10", "rate-limiter.default-drip-rate=10"])
+@TestPropertySource(properties = ["rate-limiter.algorithm=LEAKY_BUCKET", "rate-limiter.default-bucket-capacity=1", "rate-limiter.default-drip-rate=10", "rate-limiter.suspension-threshold=10", "rate-limiter.suspension-duration=60"])
 class LeakyTokenBucketTest {
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -106,5 +106,13 @@ class LeakyTokenBucketTest {
         rateLimiterProperties.blacklistedIps = setOf("127.0.0.1")
 
         mockMvc.perform(get("/test/hi")).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `exceeds suspension threshold, should return status 429`() {
+        repeat(30) {
+            mockMvc.perform(get("/test/hi"))
+        }
+        mockMvc.perform(get("/test/hi")).andExpect(status().isTooManyRequests)
     }
 }
