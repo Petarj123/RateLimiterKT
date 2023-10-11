@@ -45,6 +45,9 @@ class RateLimiterInterceptor(
             return true
         } else if (rateLimiterProperties.blacklistedIps.contains(clientIP)) {
             response.status = HttpStatus.FORBIDDEN.value()
+            response.contentType = "application/json"
+            val message = """{"message": "You have been blacklisted."}"""
+            response.writer.write(message)
             return false
         }
 
@@ -54,6 +57,9 @@ class RateLimiterInterceptor(
                 return true
             } else if (clientIP in setOf(*rateLimit.blacklist)) {
                 response.status = HttpStatus.FORBIDDEN.value()
+                response.contentType = "application/json"
+                val message = """{"message": "You have been blacklisted."}"""
+                response.writer.write(message)
                 return false
             }
         }
@@ -68,9 +74,15 @@ class RateLimiterInterceptor(
                 }
                 return if (fallback != FallbackStrategy.BLOCK) {
                     response.status = HttpStatus.OK.value()
-                    true
+                    response.contentType = "application/json"
+                    val message = """{"message": "Service is currently experiencing issues, but your request is being processed with degraded performance."}"""
+                    response.writer.write(message)
+                    return true
                 } else {
                     response.status = HttpStatus.TOO_MANY_REQUESTS.value()
+                    response.contentType = "application/json"
+                    val message = """{"message": "Service is currently unavailable due to technical issues."}"""
+                    response.writer.write(message)
                     false
                 }
             }
@@ -81,13 +93,15 @@ class RateLimiterInterceptor(
             rateLimit = rateLimit,
             endpoint = request.requestURI
         )
-
-        if (!rateLimiterAlgorithm.isAllowed(rateLimitParams)) {
+        val rateLimiterResponse = rateLimiterAlgorithm.isAllowed(rateLimitParams)
+        if (!rateLimiterResponse.isAllowed) {
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
+            response.addHeader("X-Remaining-Requests", rateLimiterResponse.remainingRequests.toString())
             return false
         }
-        return true
 
+        response.addHeader("X-Remaining-Requests", rateLimiterResponse.remainingRequests.toString())
+        return true
     }
     private fun buildRateLimitParamsDTO(identifier: String, rateLimit: RateLimit?,  endpoint: String): RateLimitParamsDTO {
         var maxRequests: Int

@@ -1,6 +1,7 @@
 package com.petarj123.ratelimiter.rate_limiter.service
 
 import com.petarj123.ratelimiter.rate_limiter.data.RateLimitParamsDTO
+import com.petarj123.ratelimiter.rate_limiter.data.RateLimiterResponse
 import com.petarj123.ratelimiter.rate_limiter.implementation.RateLimiter
 import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
@@ -12,19 +13,19 @@ import kotlin.math.min
 @Service
 class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, private val clientSuspensionService: ClientSuspensionService) : RateLimiter{
     private val logger = LoggerFactory.getLogger(TokenBucketLimiter::class.java)
-    override fun isAllowed(params: RateLimitParamsDTO): Boolean {
+    override fun isAllowed(params: RateLimitParamsDTO): RateLimiterResponse {
         val limiterKey = "bucket:${params.identifier}"
         val bucket = stringRedisTemplate.opsForHash<String, String>().entries(limiterKey)
 
         if (clientSuspensionService.isSuspended(params.identifier)) {
             logger.error("Client ${params.identifier} is suspended")
-            return false
+            return RateLimiterResponse(false, getRemainingRequests(limiterKey))
         }
 
         val capacity = params.bucketCapacity
         if (capacity <= 0) {
             logger.error("Capacity for bucket $limiterKey is 0")
-            return false
+            return RateLimiterResponse(false, getRemainingRequests(limiterKey))
         }
 
         if (bucket.isEmpty()) {
@@ -37,7 +38,7 @@ class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, p
                 )
             )
             stringRedisTemplate.expire(limiterKey, params.bucketTTL, TimeUnit.SECONDS)
-            return true
+            return RateLimiterResponse(true, getRemainingRequests(limiterKey))
         } else {
             val tokensRemaining = bucket["TokensRemaining"]?.toInt() ?: 0
             val lastRefillTime = bucket["LastRefillTime"]?.toLong() ?: 0L
@@ -61,11 +62,13 @@ class TokenBucketLimiter(private val stringRedisTemplate: StringRedisTemplate, p
                         "LastRefillTime" to (if(tokensToAdd > 0) now else lastRefillTime).toString() // Update only if refill happened
                     )
                 )
-                true
+                RateLimiterResponse(true, getRemainingRequests(limiterKey))
             } else {
-                false
+                RateLimiterResponse(false, getRemainingRequests(limiterKey))
             }
         }
     }
-
+    private fun getRemainingRequests(identifier: String): Long {
+        return stringRedisTemplate.opsForHash<String, String>().get(identifier, "TokensRemaining")?.toLong() ?: 0
+    }
 }

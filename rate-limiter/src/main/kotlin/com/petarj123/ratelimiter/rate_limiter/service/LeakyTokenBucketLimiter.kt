@@ -1,6 +1,7 @@
 package com.petarj123.ratelimiter.rate_limiter.service
 
 import com.petarj123.ratelimiter.rate_limiter.data.RateLimitParamsDTO
+import com.petarj123.ratelimiter.rate_limiter.data.RateLimiterResponse
 import com.petarj123.ratelimiter.rate_limiter.implementation.RateLimiter
 import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
@@ -13,12 +14,13 @@ class LeakyTokenBucketLimiter(private val stringRedisTemplate: StringRedisTempla
 
     private val logger = LoggerFactory.getLogger(LeakyTokenBucketLimiter::class.java)
 
-    override fun isAllowed(params: RateLimitParamsDTO): Boolean {
+    override fun isAllowed(params: RateLimitParamsDTO): RateLimiterResponse {
         val limiterKey = "leaky:${params.identifier}"
 
         if (clientSuspensionService.isSuspended(params.identifier)) {
             logger.error("Client ${params.identifier} is suspended")
-            return false
+            return RateLimiterResponse(false, getRemainingRequests(limiterKey))
+
         }
 
         val now = Instant.now().epochSecond
@@ -42,10 +44,12 @@ class LeakyTokenBucketLimiter(private val stringRedisTemplate: StringRedisTempla
             )
 
             stringRedisTemplate.expire(limiterKey, 24, TimeUnit.HOURS)
-
-            true
+            RateLimiterResponse(true, getRemainingRequests(limiterKey))
         } else {
-            false
+            RateLimiterResponse(false, getRemainingRequests(limiterKey))
         }
+    }
+    private fun getRemainingRequests(identifier: String): Long {
+        return stringRedisTemplate.opsForHash<String, String>().get(identifier, "Tokens")?.toLong() ?: 0
     }
 }
